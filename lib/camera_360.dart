@@ -15,6 +15,9 @@ class Camera360 extends StatefulWidget {
   /// Callback called when capture has ended and panorama is prepared
   final void Function(Map<String, dynamic>) onCaptureEnded;
 
+  //Loadng view
+  final Widget? loadingView;
+
   /// Callback called when camera has changed
   final void Function(int)? onCameraChanged;
 
@@ -70,6 +73,7 @@ class Camera360 extends StatefulWidget {
   const Camera360({
     Key? key,
     required this.onCaptureEnded,
+    this.loadingView,
     this.onCameraChanged,
     this.onProgressChanged,
     this.userSelectedCameraKey,
@@ -120,7 +124,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
   // The tolerance the user is allowed to have while taking images
   static const double helperDotVerticalTolerance = 1; // *2
   static const double helperDotHorizontalTolerance = 2; // *2
-  static const double helperDotRotationTolerance = 4; // *2
+  static const double helperDotRotationTolerance = 4 * 2;
 
   // System Variables (Some of these variables can be updated via the Constructor)
   late int capturedImageWidth;
@@ -162,7 +166,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
   // While waiting to take picture
   bool isWaitingToTakePhoto = false;
   // Time to wait before taking picture
-  int timeToWaitBeforeTakingPicture = 1000; // milliseconds
+  int timeToWaitBeforeTakingPicture = 300; // milliseconds
   // When stitching failes the user will need to take a nother image
   // more to the left
   bool hasStitchingFailed = false;
@@ -191,8 +195,8 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
 
     // Updating System Variables depending on User Variables
     deviceVerticalCorrectDeg = widget.userDeviceVerticalCorrectDeg ?? 75;
-    capturedImageWidth = widget.userCapturedImageWidth ?? 1000;
-    capturedImageQuality = widget.userCapturedImageQuality ?? 50;
+    capturedImageWidth = widget.userCapturedImageWidth ?? 4000;
+    capturedImageQuality = widget.userCapturedImageQuality ?? 100;
     nrPhotos = widget.userNrPhotos ?? 16;
     degreesPerPhotos = 360 / nrPhotos;
     goBackDegrees = (degreesPerPhotos / nrGoBacksAllowed) * -1; // 20% back
@@ -218,7 +222,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
   // Reset Main
   void restartApp({String? reason, bool clearCache = true}) {
     debugPrint("'Panorama360': Restarting app reason: $reason");
-    deleteCache();
+    //deleteCache();
 
     capturedImages = [];
     horizontalMovementNeeded =
@@ -321,7 +325,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
       // Update selectedCameraKey
       selectedCameraKey = cameraKey;
       // initialize camera controllers.
-      controller = CameraController(description, ResolutionPreset.high,
+      controller = CameraController(description, ResolutionPreset.veryHigh,
           enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
       await controller.initialize();
       setState(() {
@@ -678,7 +682,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
 
         try {
           finalStitchedImage =
-              await Stitcher.stitchImages(capturedImages, true);
+              await Stitcher.stitchImages(capturedImages, false);
           isPanoramaBeingStitched = false;
 
           // Callback function
@@ -929,19 +933,23 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
 
           //  Helper dot color depending on device rotation
           var helperDotColor =
-              deviceInCorrectPosition == true ? Colors.white : Colors.red;
+              deviceInCorrectPosition == true ? Colors.white : Colors.blue;
 
           // If no more photos are needed than it's time to stitch the final panorama
-          if (morePhotosNeeded() == false) {
-            prepareFinalPanorama();
-          }
+
+          Future.microtask(() async {
+            if (morePhotosNeeded() == false) {
+              await prepareFinalPanorama();
+            }
+          });
 
           return Container(
-            color: Colors.black,
+            height: double.infinity,
             child: morePhotosNeeded()
                 ? Stack(
                     children: [
-                      Center(
+                      SizedBox(
+                        height: double.infinity,
                         child: CameraPreview(controller),
                       ),
                       Column(
@@ -1002,12 +1010,19 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
                       ),
                     ],
                   )
-                : Center(
-                    child: Text(
-                      loadingText,
-                      style: const TextStyle(color: Colors.white),
+                : widget.loadingView ??
+                    Center(
+                      child: Text(
+                        loadingText,
+                        style: const TextStyle(color: Colors.white),
+                      ),
                     ),
-                  ),
+            // : Center(
+            //     child: Text(
+            //       loadingText,
+            //       style: const TextStyle(color: Colors.white),
+            //     ),
+            //   ),
           );
         },
       );
