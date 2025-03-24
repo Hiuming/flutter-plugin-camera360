@@ -70,6 +70,9 @@ class Camera360 extends StatefulWidget {
   /// Camera not ready content [Widget]
   final Widget? cameraNotReadyContent;
 
+  // return the url of captured images
+  final Future<XFile> Function(List<XFile>)? onCapturedImages;
+
   const Camera360({
     Key? key,
     required this.onCaptureEnded,
@@ -90,6 +93,7 @@ class Camera360 extends StatefulWidget {
     this.cameraSelectorInfoPopUpContent,
     this.cameraNotReadyContent,
     this.userCheckStitchingDuringCapture = false,
+    this.onCapturedImages,
   }) : super(key: key);
 
   @override
@@ -202,7 +206,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
     goBackDegrees = (degreesPerPhotos / nrGoBacksAllowed) * -1; // 20% back
     nrGoBacksAllowed = 5;
     nrGoBacksDone = 0;
-    degToNextPosition = 360 / nrPhotos;
+    degToNextPosition = 360 / (nrPhotos - 1);
     selectedCameraKey = widget.userSelectedCameraKey ?? 0;
     loadingText = widget.userLoadingText ?? 'Preparing panorama...';
     helperText = widget.userHelperText ?? 'Point the camera at the dot';
@@ -222,7 +226,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
   // Reset Main
   void restartApp({String? reason, bool clearCache = true}) {
     debugPrint("'Panorama360': Restarting app reason: $reason");
-    //deleteCache();
+    deleteCache();
 
     capturedImages = [];
     horizontalMovementNeeded =
@@ -356,11 +360,11 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
   }
 
   // Resize captured image for faster stitching
-  Future<XFile> resizeImage(File img) async {
+  Future<XFile> resizeImage(File img,int index) async {
     final filePath = img.absolute.path;
     final lastIndex = filePath.lastIndexOf(RegExp(r'.png|.jp'));
     final splitted = filePath.substring(0, (lastIndex));
-    final outPath = "${splitted}_compressed${filePath.substring(lastIndex)}";
+    final outPath = "image_${index}_compressed${filePath.substring(lastIndex)}";
 
     XFile? compressedImage;
     if (lastIndex == filePath.lastIndexOf(RegExp(r'.png'))) {
@@ -404,7 +408,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
       // Attempt to take a picture and then get the location
       // where the image file is saved.
       XFile image = await controller.takePicture().then((XFile? file) {
-        return resizeImage(File(file!.path));
+        return resizeImage(File(file!.path), nrPhotosTaken);
       });
 
       // Prepare for taking the next image
@@ -677,24 +681,24 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
     // Download image
     if (imageSaved == false) {
       imageSaved = true;
-      if (isPanoramaBeingStitched == false) {
-        isPanoramaBeingStitched = true;
-
         try {
-          finalStitchedImage =
-              await Stitcher.stitchImages(capturedImages, false);
-          isPanoramaBeingStitched = false;
-
+        await widget.onCapturedImages?.call(capturedImages).then((value) {
           // Callback function
+          finalStitchedImage = value;
           prepareOnCaptureEnded(finalStitchedImage);
+        });
+
         } catch (_) {
           stitchingFailed();
+          setState(() {
+            isPanoramaBeingStitched = false;
+          });
 
           // Callback function
           prepareOnCaptureEnded(null);
           debugPrint("'Panorama360': Stitching failed");
         }
-      }
+      
     }
   }
 
@@ -939,13 +943,17 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
 
           Future.microtask(() async {
             if (morePhotosNeeded() == false) {
+              setState(() {
+                isPanoramaBeingStitched = true;
+              });
               await prepareFinalPanorama();
+
             }
           });
 
           return Container(
             height: double.infinity,
-            child: morePhotosNeeded()
+            child: !isPanoramaBeingStitched
                 ? Stack(
                     children: [
                       SizedBox(
@@ -967,11 +975,6 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
                                     selectCamera(cameraKey);
                                   })
                               : Container(),
-                          // Reset
-                          // ElevatedButton(
-                          //     onPressed: () =>
-                          //         restartApp(reason: "Restet button hit"),
-                          //     child: const Text("reset")),
                         ],
                       ),
                       // Helper Text for the first image
