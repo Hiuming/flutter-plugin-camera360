@@ -170,7 +170,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
   // While waiting to take picture
   bool isWaitingToTakePhoto = false;
   // Time to wait before taking picture
-  int timeToWaitBeforeTakingPicture = 300; // milliseconds
+  int timeToWaitBeforeTakingPicture = 500; // milliseconds
   // When stitching failes the user will need to take a nother image
   // more to the left
   bool hasStitchingFailed = false;
@@ -199,14 +199,14 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
 
     // Updating System Variables depending on User Variables
     deviceVerticalCorrectDeg = widget.userDeviceVerticalCorrectDeg ?? 75;
-    capturedImageWidth = widget.userCapturedImageWidth ?? 4000;
+    capturedImageWidth = widget.userCapturedImageWidth ?? 2000;
     capturedImageQuality = widget.userCapturedImageQuality ?? 100;
     nrPhotos = widget.userNrPhotos ?? 16;
     degreesPerPhotos = 360 / nrPhotos;
     goBackDegrees = (degreesPerPhotos / nrGoBacksAllowed) * -1; // 20% back
     nrGoBacksAllowed = 5;
     nrGoBacksDone = 0;
-    degToNextPosition = 360 / (nrPhotos - 1);
+    degToNextPosition = 360 / nrPhotos;
     selectedCameraKey = widget.userSelectedCameraKey ?? 0;
     loadingText = widget.userLoadingText ?? 'Preparing panorama...';
     helperText = widget.userHelperText ?? 'Point the camera at the dot';
@@ -364,7 +364,7 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
     final filePath = img.absolute.path;
     final lastIndex = filePath.lastIndexOf(RegExp(r'.png|.jp'));
     final splitted = filePath.substring(0, (lastIndex));
-    final outPath = "image_${index}_compressed${filePath.substring(lastIndex)}";
+    final outPath = "${splitted}_compressed_${index}${filePath.substring(lastIndex)}";
 
     XFile? compressedImage;
     if (lastIndex == filePath.lastIndexOf(RegExp(r'.png'))) {
@@ -374,7 +374,6 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
         format: CompressFormat.png,
         quality: capturedImageQuality,
         minWidth: capturedImageWidth,
-        minHeight: 1,
       );
     } else {
       compressedImage = await FlutterImageCompress.compressAndGetFile(
@@ -382,7 +381,6 @@ class _Camera360State extends State<Camera360> with WidgetsBindingObserver {
         outPath,
         quality: capturedImageQuality,
         minWidth: capturedImageWidth,
-        minHeight: 1,
       );
     }
 
